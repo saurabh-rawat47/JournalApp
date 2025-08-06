@@ -14,6 +14,9 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin")
 @Tag(name = "Admin APIs")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"},
+        allowedHeaders = "*",
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class AdminController {
 
     @Autowired
@@ -23,24 +26,45 @@ public class AdminController {
     AppCache appCache;
 
     @GetMapping("/all-users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> all = userService.getAll();
-        if (all != null && !all.isEmpty()) {
-            return new ResponseEntity<>(all, HttpStatus.OK);
+    public ResponseEntity<?> getAllUsers() {
+        try {
+            List<User> all = userService.getAll();
+            if (all != null && !all.isEmpty()) {
+                // Remove passwords from response
+                all.forEach(user -> user.setPassword(null));
+                return new ResponseEntity<>(all, HttpStatus.OK);
+            }
+            return new ResponseEntity<>(List.of(), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error fetching users: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        return new ResponseEntity<>(all, HttpStatus.NOT_FOUND);
-
     }
 
     @PostMapping("/create-admin-user")
-    public void createUser(@RequestBody User user) {
-        userService.saveAdmin(user);
+    public ResponseEntity<?> createUser(@RequestBody User user) {
+        try {
+            // Validate input
+            if (user.getUserName() == null || user.getUserName().trim().isEmpty()) {
+                return new ResponseEntity<>("Username is required", HttpStatus.BAD_REQUEST);
+            }
+            if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+                return new ResponseEntity<>("Password is required", HttpStatus.BAD_REQUEST);
+            }
+
+            userService.saveAdmin(user);
+            return new ResponseEntity<>("Admin user created successfully", HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error creating admin user: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @GetMapping("/clear-app-cache")
-    public void clearAppCache() {
-        appCache.init();
+    public ResponseEntity<?> clearAppCache() {
+        try {
+            appCache.init();
+            return new ResponseEntity<>("Cache cleared successfully", HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error clearing cache: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
-
-
 }

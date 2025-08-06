@@ -1,6 +1,5 @@
 package net.engineeringdigest.journalApp.controller;
 
-
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import net.engineeringdigest.journalApp.dto.UserDTO;
@@ -20,7 +19,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/public")
 @Tag(name = "Public APIs")
 @Slf4j
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"},
+        allowedHeaders = "*",
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class PublicController {
+
     @Autowired
     UserService userService;
 
@@ -34,31 +37,66 @@ public class PublicController {
     private JwtUtil jwtUtil;
 
     @GetMapping("/health-check")
-    public String healthCheck() {
-        return "OK";
+    public ResponseEntity<String> healthCheck() {
+        return new ResponseEntity<>("OK", HttpStatus.OK);
     }
 
     @PostMapping("/signup")
-    public void signup(@RequestBody UserDTO user) {
-        User newUser = new User();
-        newUser.setUserName(user.getUserName());
-        newUser.setEmail(user.getEmail());
-        newUser.setPassword(user.getPassword());
-        newUser.setSentimentAnalysis(user.isSentimentAnalysis());
-        userService.saveNewUser(newUser);
+    public ResponseEntity<?> signup(@RequestBody UserDTO user) {
+        try {
+            // Validate input
+            if (user.getUserName() == null || user.getUserName().trim().isEmpty()) {
+                return new ResponseEntity<>("Username is required", HttpStatus.BAD_REQUEST);
+            }
+            if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+                return new ResponseEntity<>("Email is required", HttpStatus.BAD_REQUEST);
+            }
+            if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+                return new ResponseEntity<>("Password is required", HttpStatus.BAD_REQUEST);
+            }
+
+            // Check if user already exists
+            User existingUser = userService.findByUserName(user.getUserName());
+            if (existingUser != null) {
+                return new ResponseEntity<>("Username already exists", HttpStatus.CONFLICT);
+            }
+
+            User newUser = new User();
+            newUser.setUserName(user.getUserName().trim());
+            newUser.setEmail(user.getEmail().trim());
+            newUser.setPassword(user.getPassword());
+            newUser.setSentimentAnalysis(user.isSentimentAnalysis());
+
+            userService.saveNewUser(newUser);
+            return new ResponseEntity<>("User created successfully", HttpStatus.CREATED);
+        } catch (Exception e) {
+            log.error("Error during signup", e);
+            return new ResponseEntity<>("Error creating user: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody User user){
+    public ResponseEntity<String> login(@RequestBody User user) {
         try {
-            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(user.getUserName(),
-                    user.getPassword()));
+            // Validate input
+            if (user.getUserName() == null || user.getUserName().trim().isEmpty()) {
+                return new ResponseEntity<>("Username is required", HttpStatus.BAD_REQUEST);
+            }
+            if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+                return new ResponseEntity<>("Password is required", HttpStatus.BAD_REQUEST);
+            }
+
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getUserName(), user.getPassword())
+            );
+
             UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUserName());
             String jwt = jwtUtil.generateToken(userDetails.getUsername());
+
             return new ResponseEntity<>(jwt, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("Exception occured while createAuthenticationToken ", e);
-            return new ResponseEntity<>("Incorrect username or password", HttpStatus.BAD_REQUEST);
+            log.error("Exception occurred while createAuthenticationToken", e);
+            return new ResponseEntity<>("Incorrect username or password", HttpStatus.UNAUTHORIZED);
         }
     }
 }
