@@ -1,4 +1,4 @@
-# Journal App Frontend
+# Journal App Backend 
 
 A modern, animated React frontend for the Journal Application with beautiful UI and smooth animations.
 
